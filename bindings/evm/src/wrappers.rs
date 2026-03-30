@@ -1,15 +1,15 @@
 use derive_more::{From, Into};
-pub use ekubo_sdk::{alloy_primitives::Address as RustAddress, U256 as RustU256};
 use ekubo_sdk::quoting::types::{Quote as RustQuote, QuoteParams as RustQuoteParams};
-use js_sys::BigInt;
-use serde::{de, ser, Deserialize, Serialize};
+pub use ekubo_sdk::{alloy_primitives::Address as RustAddress, U256 as RustU256};
+use js_sys::{BigUint64Array, Uint8Array};
+use serde::{de, Deserialize, Serialize};
 use tsify::{serde_wasm_bindgen, Tsify};
 
 #[derive(Tsify, From, Into)]
-pub struct U256(#[tsify(type = "bigint")] RustU256);
+pub struct U256(#[tsify(type = "BigUint64Array")] RustU256);
 
-#[derive(Tsify, From, Into, Serialize, Deserialize)]
-pub struct Address(#[tsify(type = "string")] RustAddress);
+#[derive(Tsify, From, Into)]
+pub struct Address(#[tsify(type = "Uint8Array")] RustAddress);
 
 #[derive(Tsify, Deserialize)]
 pub struct TokenAmount {
@@ -47,29 +47,73 @@ pub struct Quote<R, S> {
     pub fees_paid: u128,
 }
 
+impl Address {
+    const BYTES: usize = 20;
+}
+
 impl Serialize for U256 {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
-        let bigint: BigInt = self.0.to_string().parse().map_err(|err| {
-            ser::Error::custom(format!("failed to deserialize `bigint`: {err:?}"))
-        })?;
-        serde_wasm_bindgen::preserve::serialize(&bigint, serializer)
+        let limbs = self.0.into_limbs();
+        let array = BigUint64Array::from(limbs.as_slice());
+        serde_wasm_bindgen::preserve::serialize(&array, serializer)
     }
 }
 
-// Don't use the default `Deserialize` impl which tries to `deserialize_any` which leads to
-// `serde_wasm_bindgen::de::Deserializer` trying to deserialize as an i64 or u64
 impl<'de> Deserialize<'de> for U256 {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
-        let bigint: BigInt = serde_wasm_bindgen::preserve::deserialize(deserializer)?;
-        Ok(Self(ToString::to_string(&bigint).parse().map_err(
-            |err| de::Error::custom(format!("failed to deserialize `bigint`: {err}")),
-        )?))
+        let array: BigUint64Array = serde_wasm_bindgen::preserve::deserialize(deserializer)?;
+
+        if array.length() as usize != RustU256::LIMBS {
+            return Err(de::Error::custom(format!(
+                "expected {} u64 limbs for U256, got {}",
+                RustU256::LIMBS,
+                array.length()
+            )));
+        }
+
+        let mut limbs = [0_u64; _];
+        array.copy_to(&mut limbs);
+
+        Ok(Self(RustU256::from_limbs(limbs)))
+    }
+}
+
+impl Serialize for Address {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let bytes = self.0.into_array();
+        let array = Uint8Array::from(bytes.as_slice());
+        serde_wasm_bindgen::preserve::serialize(&array, serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for Address {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let array: Uint8Array = serde_wasm_bindgen::preserve::deserialize(deserializer)?;
+
+        if array.length() as usize != Self::BYTES {
+            return Err(de::Error::custom(format!(
+                "expected {} bytes, got {}",
+                Self::BYTES,
+                array.length()
+            )));
+        }
+
+        let mut bytes = [0_u8; _];
+        array.copy_to(&mut bytes);
+
+        Ok(Self(bytes.into()))
     }
 }
 

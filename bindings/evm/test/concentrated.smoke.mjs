@@ -3,10 +3,11 @@ import assert from "node:assert/strict";
 
 import { ConcentratedPool, initPanicHook } from "../pkg/ekubo_sdk_evm_wasm.js";
 
-const TOKEN0 = "0x0000000000000000000000000000000000000000";
-const TOKEN1 = "0x0000000000000000000000000000000000000001";
-const EXTENSION = "0x0000000000000000000000000000000000000002";
-const SQRT_RATIO_ONE = 1n << 128n;
+const TOKEN0 = Uint8Array.from(new Array(20).fill(0));
+const TOKEN1 = Uint8Array.from([...new Array(19).fill(0), 1]);
+const EXTENSION = Uint8Array.from([...new Array(19).fill(0), 2]);
+const SQRT_RATIO_ONE = BigUint64Array.from([0n, 0n, 1n, 0n]);
+const SQRT_RATIO_LIMIT = BigUint64Array.from([0n, 0n, 4n, 0n]);
 
 test("constructs concentrated pool and returns a quote", () => {
   initPanicHook();
@@ -40,7 +41,7 @@ test("constructs concentrated pool and returns a quote", () => {
           amount: 1000n,
         },
         meta: null,
-        sqrt_ratio_limit: 1n << 130n,
+        sqrt_ratio_limit: SQRT_RATIO_LIMIT,
       });
 
       assert.equal(quote.calculated_amount, 499n);
