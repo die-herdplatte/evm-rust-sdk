@@ -12,6 +12,12 @@ homepage = "https://ekubo.org"
 repository = "https://github.com/EkuboProtocol/rust-sdk"
 keywords = ["crypto", "ekubo", "protocol", "defi", "no_std"]
 
+[workspace.lints.clippy]
+absolute_paths = "warn"
+
+[workspace.dependencies]
+derive_more = { version = "2", default-features = false }
+
 [package]
 name = "ekubo_sdk"
 description = "Types for interacting with Ekubo Protocol on Starknet & EVM chains"
@@ -24,14 +30,13 @@ homepage.workspace = true
 repository.workspace = true
 keywords.workspace = true
 
+[lints]
+workspace = true
+
 [dependencies]
 alloy-primitives-0_6 = { package = "alloy-primitives", version = "0.6", optional = true, default-features = false }
 alloy-primitives-1 = { package = "alloy-primitives", version = "1", optional = true, default-features = false }
-derive_more = { version = "2", features = [
-    "add",
-    "add_assign",
-    "from",
-], default-features = false }
+derive_more = { workspace = true, features = ["add", "add_assign", "from"] }
 libm = { version = "0.2", default-features = false, optional = true }
 num-traits = { version = "0.2.4", features = [
     "i128",
