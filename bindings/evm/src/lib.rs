@@ -1,6 +1,6 @@
 use wasm_bindgen::prelude::*;
 
-mod concentrated;
+mod quoting;
 mod wrappers;
 
 #[wasm_bindgen(js_name = initPanicHook)]

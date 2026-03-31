@@ -1,13 +1,12 @@
+use derive_more::Into;
 use ekubo_sdk::{
-    alloy_primitives::Address,
     chain::evm::{
-        EvmConcentratedPool as RustConcentratedPool,
-        EvmConcentratedPoolKey as RustConcentratedPoolKey, EvmConcentratedPoolResources,
+        EvmConcentratedPool as RustConcentratedPool, EvmConcentratedPoolResources,
         EvmConcentratedPoolState,
     },
     quoting::{
-        pools::concentrated::TickSpacing,
-        types::{Pool, PoolConfig, PoolKey, Tick as RustTick},
+        pools::concentrated::TickSpacing as RustTickSpacing,
+        types::{Pool as _, Tick as RustTick},
     },
 };
 use itertools::Itertools as _;
@@ -15,30 +14,16 @@ use serde::{Deserialize, Serialize};
 use tsify::{Ts, Tsify};
 use wasm_bindgen::prelude::*;
 
-use crate::wrappers::{Quote, QuoteParams, U256};
+use crate::{
+    quoting::pools::PoolKey,
+    wrappers::{Quote, QuoteParams, U256},
+};
 
 #[wasm_bindgen]
 pub struct ConcentratedPool(RustConcentratedPool);
 
-#[derive(Tsify, Serialize, Deserialize)]
-pub struct ConcentratedPoolConfig {
-    /// Extension address.
-    pub extension: Address,
-    /// Fee tier of the pool.
-    pub fee: u64,
-    /// Tick spacing for concentrated liquidity.
-    pub tick_spacing: u32,
-}
-
-#[derive(Tsify, Serialize, Deserialize)]
-pub struct ConcentratedPoolKey {
-    /// The smaller token address.
-    pub token0: Address,
-    /// The larger token address.
-    pub token1: Address,
-    /// Pool configuration.
-    pub config: ConcentratedPoolConfig,
-}
+#[derive(Tsify, Deserialize, Into)]
+pub struct ConcentratedPoolTypeConfig(#[tsify(type = "number")] RustTickSpacing);
 
 #[derive(Tsify, Serialize, Deserialize)]
 pub struct Tick {
@@ -72,9 +57,11 @@ pub struct ConcentratedPoolResources {
 impl ConcentratedPool {
     #[wasm_bindgen(constructor)]
     pub fn new(
-        key: &Ts<ConcentratedPoolKey>,
+        #[wasm_bindgen(unchecked_param_type = "PoolKey<ConcentratedPoolTypeConfig>")] key: &Ts<
+            PoolKey<ConcentratedPoolTypeConfig>,
+        >,
         state: &Ts<ConcentratedPoolState>,
-        sorted_ticks: Vec<Ts<Tick>>,
+        sorted_ticks: Box<[Ts<Tick>]>,
     ) -> Result<ConcentratedPool, JsError> {
         Ok(Self(RustConcentratedPool::new(
             key.to_rust()?.into(),
@@ -96,26 +83,6 @@ impl ConcentratedPool {
     ) -> Result<Ts<Quote<ConcentratedPoolResources, ConcentratedPoolState>>, JsError> {
         let quote = self.0.quote(params.to_rust()?.into())?;
         Ok(Quote::from(quote).into_ts()?)
-    }
-}
-
-impl From<ConcentratedPoolConfig> for PoolConfig<Address, u64, TickSpacing> {
-    fn from(value: ConcentratedPoolConfig) -> Self {
-        Self {
-            extension: value.extension,
-            fee: value.fee,
-            pool_type_config: TickSpacing(value.tick_spacing),
-        }
-    }
-}
-
-impl From<ConcentratedPoolKey> for RustConcentratedPoolKey {
-    fn from(value: ConcentratedPoolKey) -> Self {
-        PoolKey {
-            token0: value.token0,
-            token1: value.token1,
-            config: value.config.into(),
-        }
     }
 }
 
